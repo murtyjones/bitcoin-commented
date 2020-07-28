@@ -1365,6 +1365,10 @@ void CSendDialog::OnButtonPaste(wxCommandEvent& event)
     }
 }
 
+/**
+ * When the user clicks the "Send" button, this method is
+ * executed to try and send coins to the recipient.
+ */
 void CSendDialog::OnButtonSend(wxCommandEvent& event)
 {
     CWalletTx wtx;
