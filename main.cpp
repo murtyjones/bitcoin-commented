@@ -62,22 +62,50 @@ CAddress addrIncoming;
 // mapKeys
 //
 
+/**
+ * Adds a given key to:
+ *     1. The global `mapKeys` and `mapPubKeys` variables.
+ *     2. The wallet.dat file
+ */ 
 bool AddKey(const CKey& key)
 {
+    /**
+     * Acquire a lock so that we can safely modify the
+     * mapKeys and mapPubKeys global objects without
+     * having to worry about another thread modifying
+     * these variables at the same time.
+     */
     CRITICAL_BLOCK(cs_mapKeys)
     {
+        /**
+         * Write to the mapKeys variable a mapping of the
+         * public key to the private key.
+         */
         mapKeys[key.GetPubKey()] = key.GetPrivKey();
+        /**
+         * Write to the mapPubKeys variable a mapping of the
+         * hash160 of the public key (IE the bitcoin address)
+         * to the public key.
+         */
         mapPubKeys[Hash160(key.GetPubKey())] = key.GetPubKey();
     }
+    // Write the public and private key to the wallet.dat file:
     return CWalletDB().WriteKey(key.GetPubKey(), key.GetPrivKey());
 }
 
+/**
+ * Creates a new public/private key that can be used
+ * to recieve bitcoin and spend received bitcoin.
+ */
 vector<unsigned char> GenerateNewKey()
 {
+    // Make the new key
     CKey key;
     key.MakeNewKey();
+    // Try to add the key to application state and wallet.dat"
     if (!AddKey(key))
         throw runtime_error("GenerateNewKey() : AddKey failed\n");
+    // Return the public key:
     return key.GetPubKey();
 }
 

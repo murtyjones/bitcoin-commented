@@ -1927,24 +1927,39 @@ void CYourAddressDialog::OnButtonRename(wxCommandEvent& event)
     pframeMain->RefreshListCtrl();
 }
 
+/**
+ * When the user clicks "New" to create a new address,
+ * this method is executed to create a new bitcoin
+ * address that the user can receive coins to.
+ */
 void CYourAddressDialog::OnButtonNew(wxCommandEvent& event)
 {
-    // Ask name
+    // Ask the user for a label for this address:
     CGetTextFromUserDialog dialog(this, "New Bitcoin Address", "Label", "");
     if (!dialog.ShowModal())
         return;
+    // Get the label:
     string strName = dialog.GetValue();
 
-    // Generate new key
+    // Generate a new address from a new public key:
     string strAddress = PubKeyToAddress(GenerateNewKey());
+
+    // Add the address with the label to the address book:
     SetAddressBookName(strAddress, strName);
 
-    // Add to list and select it
+    /**
+     * Add this address/label to the list of addresses owned by
+     * the user that is shown in the GUI, and select it.
+     */
     int nIndex = InsertLine(m_listCtrl, strName, strAddress);
     SetSelection(m_listCtrl, nIndex);
     m_listCtrl->SetFocus();
 }
 
+/**
+ * When the user clicks the "Copy" button, this method
+ * copies the associated address to the user's clipboard.
+ */
 void CYourAddressDialog::OnButtonCopy(wxCommandEvent& event)
 {
     // Copy address box to clipboard
