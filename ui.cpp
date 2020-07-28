@@ -1418,6 +1418,41 @@ void CSendDialog::OnButtonSend(wxCommandEvent& event)
         /**
          * If this is a valid bitcoin address, create a pay-to-pubkeyhash
          * transaction using the hash160 of the recipient's address.
+         * 
+         * By including this script in this transaction, the owner of the
+         * private key associated with the hashed bitcoin address can spend
+         * the coins sent to this address by successfully executing this script
+         * like so:
+         *
+         * Step 0:
+         *    stack: empty
+         *    script: <sig> <pubKey> OP_DUP OP_HASH160 hash160 OP_EQUALVERIFY OP_CHECKSIG
+         * 
+         * Step 1: Encounter the first constants in the script and add them to the stack
+         *    stack: <sig> <pubKey>
+         *    script: OP_DUP OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG
+         * 
+         * Step 2: Encounter and execute OP_DUP, which tells us to duplicate the top item on the stack
+         *    stack: <sig> <pubKey> <pubKey>
+         *    script: OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG
+         * 
+         * Step 3: Encounter and execute OP_HASH160, which tells us to hash160 the top item on the stack
+         *    stack: <sig> <pubKey> <pubKeyHash160>
+         *    script: <hash160> OP_EQUALVERIFY OP_CHECKSIG
+         * 
+         * Step 4: Encounter the hash160 in the script and add it to the stack
+         *    stack: <sig> <pubKey> <pubKeyHash160> <hash160>
+         *    script: OP_EQUALVERIFY OP_CHECKSIG
+         * 
+         * Step 5: Encounter and execute OP_EQUALVERIFY, which tells us to verify the equality of the top two stack items
+         *    stack: <sig> <pubKey>
+         *    script: OP_CHECKSIG
+         * 
+         * Step 6: Encounter and execute OP_CHECKSIG, which tells us to check the signature of the top two items and return the result
+         *    stack: true
+         *    script: empty
+         * 
+         * If the stack is `true` when and the script has fully run without failing, the coins can be spent.
          */
         CScript scriptPubKey;
         scriptPubKey << OP_DUP << OP_HASH160 << hash160 << OP_EQUALVERIFY << OP_CHECKSIG;
@@ -1427,7 +1462,7 @@ void CSendDialog::OnButtonSend(wxCommandEvent& event)
              * If the transaction failed to send, return early. An error
              * is not displayed here because the `SendMoney` function will
              * handle the display of any error in the UI that needs to be
-             * show, so no further action needs to be taken by this function.
+             * shown, so no further action needs to be taken by this function.
              */
             return;
 
@@ -1436,15 +1471,26 @@ void CSendDialog::OnButtonSend(wxCommandEvent& event)
     }
     else
     {
+        /**
+         * If the address isn't a bitcoin address, try to parse it
+         * as an IP address to send a message to the recipient. No
+         * one does this in bitcoin anymore so not something to pay
+         * much attention to.
+         */
+
         // Parse IP address
         CAddress addr(strAddress.c_str());
         if (addr.ip == 0)
         {
+            /**
+             * If the IP address was invalid, show an error and
+             * do nothing.
+             */
             wxMessageBox("Invalid address  ", "Send Coins");
             return;
         }
 
-        // Message
+        // Allow the user to attach a message along with the transaction.
         wtx.mapValue["to"] = strAddress;
         wtx.mapValue["from"] = m_textCtrlFrom->GetValue();
         wtx.mapValue["message"] = m_textCtrlMessage->GetValue();
@@ -1455,6 +1501,7 @@ void CSendDialog::OnButtonSend(wxCommandEvent& event)
             return;
     }
 
+    // If our address book doesn't have this address, add it
     if (!mapAddressBook.count(strAddress))
         SetAddressBookName(strAddress, "");
 
