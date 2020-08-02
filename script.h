@@ -4,11 +4,63 @@
 
 class CTransaction;
 
+/**
+ * The various signature types for transactions are defined here with
+ * explanations for each.
+ * 
+ * @see https://raghavsood.com/blog/2018/06/10/bitcoin-signature-types-sighash
+ */
 enum
 {
+    /**
+     * The default signature type for transactions. When this is used
+     * to sign a transaction, it signs all of the inputs and all of the
+     * outputs. In other words, they payer is specificying that their
+     * BTC can only be transacted to specific addresses.
+     */
     SIGHASH_ALL = 1,
+    /**
+     * When this signature type is used, all of the inputs are signed, but
+     * none of the outputs are signed. The payer essentially agrees to pay
+     * BTC but doesn't particularly care where it goes. Should never be used
+     * in a single-input transaction because a miner could just send the BTC
+     * to an address they control. You'd typically use this when multiple
+     * parties are contributing inputs to a transaction, having another party
+     * use `SIGHASH_ALL` to specify where the inputs should go.
+     */
     SIGHASH_NONE = 2,
+    /**
+     * When this signature type is used, all of the inputs are signed, but
+     * only one output is signed. This means that the payer is okay with
+     * the transaction taking place as long as the specified amount of BTC
+     * goes to the one specified address.
+     */
     SIGHASH_SINGLE = 3,
+    /**
+     * This signature type is used in combination with one of the above types
+     * rather than being used by itself.
+     * 
+     * When this is used, only one input is signed. Here's how it works with
+     * the other signing types:
+     * 
+     *   - SIGHASH_ALL + SIGHASH_ANYONECANPAY = All outputs signed, one
+     *                                          input signed. Means that the
+     *                                          sender of the transaction only
+     *                                          cares that the coins in the one
+     *                                          input are received by the outputs
+     *                                          signed, and doesn't care about other
+     *                                          inputs in the transaction.
+     *
+     *   - SIGHASH_NONE + SIGHASH_ANYONECANPAY = No outputs signed, one input
+     *                                           Signed. Equivalent of saying that
+     *                                           any transaction can spend this BTC.
+     * 
+     *   - SIGHASH_SINGLE + SIGHASH_ANYONECANPAY = One output signed, one input
+     *                                             signed. Indicates that the spender
+     *                                             wants to send one input to one ouput
+     *                                             but doesn't care about additional
+     *                                             inputs and outputs.
+     */
     SIGHASH_ANYONECANPAY = 0x80,
 };
 

@@ -154,6 +154,11 @@ inline bool DecodeBase58Check(const string& str, vector<unsigned char>& vchRet)
 
 static const unsigned char ADDRESSVERSION = 0;
 
+/**
+ * Returns a string representation of the hash160 of
+ * a bitcoin public key, with the version number prepended
+ * to the beginning.
+ */
 inline string Hash160ToAddress(uint160 hash160)
 {
     // add 1-byte version number to the front
@@ -194,7 +199,10 @@ inline bool IsValidBitcoinAddress(const string& str)
 
 
 
-
+/**
+ * Returns the bitcoin address associated with a given
+ * public key.
+ */
 inline string PubKeyToAddress(const vector<unsigned char>& vchPubKey)
 {
     return Hash160ToAddress(Hash160(vchPubKey));

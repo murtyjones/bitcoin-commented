@@ -814,7 +814,13 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
 
 
 
-
+/**
+ * For a given transaction and a specific input slot `nIn`:
+ * 
+ *   1. Blanks out any not-relevant input signatures
+ *   2. Sets the script signature of the relevant input slot
+ *   3. 
+ */
 uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType)
 {
     if (nIn >= txTo.vin.size())
@@ -822,13 +828,14 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
         printf("ERROR: SignatureHash() : nIn=%d out of range\n", nIn);
         return 1;
     }
+    // We copy the transaction because we dont want to mutate its inputs permanently;
     CTransaction txTmp(txTo);
 
     // In case concatenating two scripts ends up with two codeseparators,
     // or an extra one at the end, this prevents all those possible incompatibilities.
     scriptCode.FindAndDelete(CScript(OP_CODESEPARATOR));
 
-    // Blank out other inputs' signatures
+    // Blank out other inputs' signatures so that they don't impact the generated hash:
     for (int i = 0; i < txTmp.vin.size(); i++)
         txTmp.vin[i].scriptSig = CScript();
     txTmp.vin[nIn].scriptSig = scriptCode;
@@ -1086,7 +1093,11 @@ bool ExtractHash160(const CScript& scriptPubKey, uint160& hash160Ret)
     return false;
 }
 
-
+/**
+ * For a given slot, hashes the input transaction (using `SignatureHash`) and
+ * signs it (using `Solver`). The script is then evaluated to be sure it's 
+ * properly signed. If so, return `true`, otherwise `false`.
+ */
 bool SignSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType, CScript scriptPrereq)
 {
     assert(nIn < txTo.vin.size());
@@ -1094,6 +1105,10 @@ bool SignSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int 
     assert(txin.prevout.n < txFrom.vout.size());
     const CTxOut& txout = txFrom.vout[txin.prevout.n];
 
+    /**
+     * Hash the `to` transaction, with a focus on the specific slot at `nIn`
+     * (meaning that other slots will be "blanked" out).
+     */
     // Leave out the signature from the hash, since a signature can't sign itself.
     // The checksig op will also drop the signatures from its hash.
     uint256 hash = SignatureHash(scriptPrereq + txout.scriptPubKey, txTo, nIn, nHashType);

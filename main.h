@@ -145,10 +145,16 @@ public:
 
 
 
+/**
+ * Refers to an output slot in a previous transaction to
+ * use when sending coins
+ */
 class COutPoint
 {
 public:
+    // Hash of the source transaction
     uint256 hash;
+    // The index of the output slot from the source transaction to use
     unsigned int n;
 
     COutPoint() { SetNull(); }
@@ -194,6 +200,7 @@ public:
 class CTxIn
 {
 public:
+    // location of the previous transaction's output
     COutPoint prevout;
     CScript scriptSig;
     unsigned int nSequence;

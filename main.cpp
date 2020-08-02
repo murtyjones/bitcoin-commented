@@ -84,8 +84,7 @@ bool AddKey(const CKey& key)
         mapKeys[key.GetPubKey()] = key.GetPrivKey();
         /**
          * Write to the mapPubKeys variable a mapping of the
-         * hash160 of the public key (IE the bitcoin address)
-         * to the public key.
+         * hash160 of the public key to the public key.
          */
         mapPubKeys[Hash160(key.GetPubKey())] = key.GetPubKey();
     }
@@ -2605,6 +2604,16 @@ bool CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, in
                     /// todo: for privacy, should randomize the order of outputs,
                     //        would also have to use a new key for the change.
                     // Use the same key as one of the coins
+                    /**
+                     * Iterate through the first transaction from
+                     * the setCoins result and iterate through its
+                     * output slots until we find the first one that
+                     * belongs to us. Save that value to `vchPubKey`
+                     * so that we can use it to send. This is guaranteed
+                     * to work as long as you have some bitcoin because
+                     * setCoins contains transactions paid to you, so
+                     * there will be an address of yours there.
+                     */
                     vector<unsigned char> vchPubKey;
                     CTransaction& txFirst = *(*setCoins.begin());
                     foreach(const CTxOut& txout, txFirst.vout)
@@ -2626,7 +2635,10 @@ bool CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, in
                         if (pcoin->vout[nOut].IsMine())
                             wtxNew.vin.push_back(CTxIn(pcoin->GetHash(), nOut));
 
-                // Sign
+                /**
+                 * For each of our coins that we'll be spending
+                 * for this transaction, sign it.
+                 */
                 int nIn = 0;
                 foreach(CWalletTx* pcoin, setCoins)
                     for (int nOut = 0; nOut < pcoin->vout.size(); nOut++)
@@ -2636,6 +2648,19 @@ bool CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, in
                 // Check that enough fee is included
                 if (nFee < wtxNew.GetMinFee(true))
                 {
+                    /**
+                     * If not enough fee is included, reset the fee and
+                     * start the current loop over again. Why do it this
+                     * way? Because it's impossible to tell how much fee
+                     * is needed without knowing the byte size of the
+                     * transaction, which requires gathering up all the
+                     * inputs based on the transaction amount and the fee
+                     * (see the catch-22?). Larger transactions in terms
+                     * of bytes (IE lots of inputs/outputs) require larger
+                     * fees. By updating nFee with the new estimated
+                     * transaction fee, we eventually will have enough of
+                     * a fee to cover the transaction size.
+                     */
                     nFee = nFeeRequiredRet = wtxNew.GetMinFee(true);
                     continue;
                 }
@@ -2681,9 +2706,13 @@ bool CommitTransactionSpent(const CWalletTx& wtxNew)
 
 
 
-
+/**
+ * Attemps to send money, returning `true` if successful and
+ * false otherwise.
+ */
 bool SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew)
 {
+    // Acquire a lock to make changes to `cs_main`
     CRITICAL_BLOCK(cs_main)
     {
         int64 nFeeRequired;
