@@ -840,10 +840,13 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
         txTmp.vin[i].scriptSig = CScript();
     txTmp.vin[nIn].scriptSig = scriptCode;
 
-    // Blank out some of the outputs
+    /**
+     * If using SIGHASH_NONE or SIGHASH_SINGLE, we'll blank out some
+     * of the outputs.
+     */
     if ((nHashType & 0x1f) == SIGHASH_NONE)
     {
-        // Wildcard payee
+        // Any address can receive the payment
         txTmp.vout.clear();
 
         // Let the others update at will
@@ -870,14 +873,23 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
                 txTmp.vin[i].nSequence = 0;
     }
 
-    // Blank out other inputs completely, not recommended for open transactions
+    /**
+     * Blank out other inputs completely, not recommended for open transactions.
+     * 
+     * In other words, only hash the one input slot transaction, meaning that any
+     * other inputs included in the transaction don't matter for the purposes of
+     * this signature.
+     */
     if (nHashType & SIGHASH_ANYONECANPAY)
     {
         txTmp.vin[0] = txTmp.vin[nIn];
         txTmp.vin.resize(1);
     }
 
-    // Serialize and hash
+    /**
+     * Serialize and hash whatever inputs and outputs we have
+     * based on the logic above.
+     */
     CDataStream ss(SER_GETHASH);
     ss.reserve(10000);
     ss << txTmp << nHashType;
@@ -992,6 +1004,8 @@ bool Solver(const CScript& scriptPubKey, uint256 hash, int nHashType, CScript& s
     {
         foreach(PAIRTYPE(opcodetype, valtype)& item, vSolution)
         {
+            // Associated transaction type: <your_public_key> OP_CHECKSIG
+            // Needs the signature in front: <signature> <your_public_key> OP_CHECKSIG
             if (item.first == OP_PUBKEY)
             {
                 // Sign
@@ -1004,9 +1018,12 @@ bool Solver(const CScript& scriptPubKey, uint256 hash, int nHashType, CScript& s
                     if (!CKey::Sign(mapKeys[vchPubKey], hash, vchSig))
                         return false;
                     vchSig.push_back((unsigned char)nHashType);
+                    // Push the signature so that the script can execute:
                     scriptSigRet << vchSig;
                 }
             }
+            // Associated transaction type: OP_DUP OP_HASH160 <your_address_hash160> OP_EQUALVERIFY OP_CHECKSIG
+            // Needs the signature & pubkey in front: <signature> <pubkey> OP_DUP OP_HASH160 <your_address_hash160> OP_EQUALVERIFY OP_CHECKSIG
             else if (item.first == OP_PUBKEYHASH)
             {
                 // Sign and give pubkey
@@ -1022,6 +1039,7 @@ bool Solver(const CScript& scriptPubKey, uint256 hash, int nHashType, CScript& s
                     if (!CKey::Sign(mapKeys[vchPubKey], hash, vchSig))
                         return false;
                     vchSig.push_back((unsigned char)nHashType);
+                    // Push the signature and pubkey so that the script can execute:
                     scriptSigRet << vchSig << vchPubKey;
                 }
             }
@@ -1113,12 +1131,16 @@ bool SignSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int 
     // The checksig op will also drop the signatures from its hash.
     uint256 hash = SignatureHash(scriptPrereq + txout.scriptPubKey, txTo, nIn, nHashType);
 
+    /**
+     * Attempt to actually sign the transaction based on the hash generated
+     * above. If the signing isn't successful, we return `false`.
+     */
     if (!Solver(txout.scriptPubKey, hash, nHashType, txin.scriptSig))
         return false;
 
     txin.scriptSig = scriptPrereq + txin.scriptSig;
 
-    // Test solution
+    // Test solution to ensure that it's correct.
     if (scriptPrereq.empty())
         if (!EvalScript(txin.scriptSig + CScript(OP_CODESEPARATOR) + txout.scriptPubKey, txTo, nIn))
             return false;
