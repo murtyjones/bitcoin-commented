@@ -696,13 +696,21 @@ struct secure_allocator : public std::allocator<T>
 class CDataStream
 {
 protected:
+    // This vector type can store characters
     typedef vector<char, secure_allocator<char> > vector_type;
+    // The actual data:
     vector_type vch;
+    // The starting position to read the data in `vch`:
     unsigned int nReadPos;
+    // The error (if any) that happened during serialiazation/deserialization:
     short state;
+    // Error mask, `ios::badbit | ios::failbit`. Used in combination with
+    // `state` to determine what error happened.
     short exceptmask;
 public:
+    // The type of serialization to carry out:
     int nType;
+    // The verson number
     int nVersion;
 
     typedef vector_type::allocator_type   allocator_type;
@@ -897,26 +905,43 @@ public:
     void ReadVersion()           { *this >> nVersion; }
     void WriteVersion()          { *this << nVersion; }
 
+    /**
+     * Read data from the stream.
+     * 
+     * Copies `nSize` chars from the stream to
+     * a preallocated piece of memory pointed by
+     * `char* pch`.
+     */
     CDataStream& read(char* pch, int nSize)
     {
         // Read from the beginning of the buffer
         assert(nSize >= 0);
+        // Ending position to read from `vch`:
         unsigned int nReadPosNext = nReadPos + nSize;
         if (nReadPosNext >= vch.size())
         {
             if (nReadPosNext > vch.size())
             {
+                // Reached the end of the stream:
                 setstate(ios::failbit, "CDataStream::read() : end of data");
+                // Copy all zeroes to pch:
                 memset(pch, 0, nSize);
+                // Reset nSize so that when we copy below, we're only copying actual data:
                 nSize = vch.size() - nReadPos;
             }
+            // Copy data from vch with size nSize to pch
             memcpy(pch, &vch[nReadPos], nSize);
+            // Reset the starting position to `0`
             nReadPos = 0;
             vch.clear();
+            // Done reading, so return.
             return (*this);
         }
+        // Copy vch[nReadPos] to pch
         memcpy(pch, &vch[nReadPos], nSize);
+        // Reset the starting pointer:
         nReadPos = nReadPosNext;
+        // Done reading, so return:
         return (*this);
     }
 
