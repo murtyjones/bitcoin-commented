@@ -54,10 +54,11 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
      * If this vector is 1, an `if` statement is ongoing.
      * If this vector is N, N `if` statements are ongoing.
      * 
-     * `true` for a given `if` statement in this vector is used in
-     * order to determine whether or not to execute the next sequence
-     * of the script. This flag can be flipped depending on whether
-     * we're in the `if`, `elseif`, or `else` portion of the statement.
+     * The boolean for a given nest of conditional statements is used to indicate
+     * whether we're in the `true` portion of the statement or the `false` portion
+     * of the statement. If *any* of the booleans in this vector are false, we're
+     * in the `false` portion of some conditional and should not execute the current
+     * statement, if any.
      */
     vector<bool> vfExec;
     vector<valtype> stack;
