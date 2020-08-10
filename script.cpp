@@ -45,8 +45,12 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
                 vector<vector<unsigned char> >* pvStackRet)
 {
     CAutoBN_CTX pctx;
+    // This is the pointer for the current byte being evaluated
     CScript::const_iterator pc = script.begin();
+    // This is the end of the script
     CScript::const_iterator pend = script.end();
+    // This represents the start of a subset of the script,
+    // beginning at an OP_CODESEPERATOR. Used for scriptSigs
     CScript::const_iterator pbegincodehash = script.begin();
     /**
      * We track a state flag (true/false) of any if statement (or statements).
@@ -69,6 +73,13 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
 
     while (pc < pend)
     {
+        /**
+         * If we are inside of any `if` statements, are we currently
+         * in the `true` portion of every statement? We are in the
+         * `false` portion of any statement, this will also be `false`.
+         * In otherwords, if any element of this vector is `false`, this
+         * variable is also false.
+         */
         bool fExec = !count(vfExec.begin(), vfExec.end(), false);
 
         //
@@ -79,6 +90,9 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
         if (!script.GetOp(pc, opcode, vchPushValue))
             return false;
 
+        // If in the `true` portion of an `if` statement
+        // and this is a byte with a value less than 78,
+        // push it onto the stack
         if (fExec && opcode <= OP_PUSHDATA4)
             stack.push_back(vchPushValue);
         else if (fExec || (OP_IF <= opcode && opcode <= OP_ENDIF))
@@ -728,6 +742,11 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
                 stack.pop_back();
                 stack.pop_back();
                 stack.push_back(fSuccess ? vchTrue : vchFalse);
+                /**
+                 * If checksig verify is provided, remove the `true`
+                 * from the stack, if the checksig result was verified.
+                 * Otherwise, leave it on and go to the end of the script.
+                 */
                 if (opcode == OP_CHECKSIGVERIFY)
                 {
                     if (fSuccess)

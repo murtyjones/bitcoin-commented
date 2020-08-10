@@ -46,6 +46,13 @@ public:
 
 
 
+/**
+ * Wrapper around BIGNUM, a type that the openssl library defines.
+ * 
+ * Public key cryptography relies on very large numbers that cannot
+ * be represented using normal language types, which is why BIGNUM
+ * is needed.
+ */
 class CBigNum : public BIGNUM
 {
 public:
@@ -162,12 +169,24 @@ public:
 
     void setuint64(uint64 n)
     {
+        // Allocate a buffer of 8 + 6 bytes for a total of 14
         unsigned char pch[sizeof(n) + 6];
+        // Create a pointer to the 4th byte, which is where the
+        // actual number data starts (the first bytes are for
+        // storing the length of the number)
         unsigned char* p = pch + 4;
         bool fLeadingZeroes = true;
         for (int i = 0; i < 8; i++)
         {
+            // Starting with the most significant byte,
+            // convert every byte to an unsigned char.
+            // Doing `& 0xff` masks all but the lowest
+            // 8 bits of the number
+            // @see https://stackoverflow.com/a/23801667/5796602
             unsigned char c = (n >> 56) & 0xff;
+            // Move the next byte of n to the most significant
+            // position, so that it's ready for extraction via
+            // the line above
             n <<= 8;
             if (fLeadingZeroes)
             {
