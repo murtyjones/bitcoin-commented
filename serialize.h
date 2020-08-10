@@ -43,6 +43,16 @@ enum
     SER_BLOCKHEADERONLY = (1 << 17),
 };
 
+/**
+ * Implements the 3 serialization methods needed for a given class
+ * to be compatible with reading/writing data to/from `CDataStream`.
+ * 
+ * The three actions (CSerActionGetSerializeSize, CSerActionSerialize,
+ * and CSerActionUnserialize) exist purely so that the {statements}
+ * calls have context for where they are being invoked from and what
+ * type of action (getting serialize size, reading data, or writing
+ * data) is happening.
+ */
 #define IMPLEMENT_SERIALIZE(statements)    \
     unsigned int GetSerializeSize(int nType=0, int nVersion=VERSION) const  \
     {                                           \
@@ -88,6 +98,7 @@ enum
 //
 // Basic types
 //
+// Macro for writing different types to a stream
 #define WRITEDATA(s, obj)   s.write((char*)&(obj), sizeof(obj))
 #define READDATA(s, obj)    s.read((char*)&(obj), sizeof(obj))
 
@@ -945,6 +956,10 @@ public:
         return (*this);
     }
 
+    /**
+     * Go to the position in the stream specified
+     * by nSize.
+     */
     CDataStream& ignore(int nSize)
     {
         // Ignore from the beginning of the buffer
@@ -988,6 +1003,7 @@ public:
         return ::GetSerializeSize(obj, nType, nVersion);
     }
 
+    // Overload the << operator
     template<typename T>
     CDataStream& operator<<(const T& obj)
     {
@@ -996,6 +1012,7 @@ public:
         return (*this);
     }
 
+    // Overload the >> operator
     template<typename T>
     CDataStream& operator>>(T& obj)
     {

@@ -48,6 +48,17 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
     CScript::const_iterator pc = script.begin();
     CScript::const_iterator pend = script.end();
     CScript::const_iterator pbegincodehash = script.begin();
+    /**
+     * We track a state flag (true/false) of any if statement (or statements).
+     * If this vector is 0, no `if` statemnt is ongoing.
+     * If this vector is 1, an `if` statement is ongoing.
+     * If this vector is N, N `if` statements are ongoing.
+     * 
+     * `true` for a given `if` statement in this vector is used in
+     * order to determine whether or not to execute the next sequence
+     * of the script. This flag can be flipped depending on whether
+     * we're in the `if`, `elseif`, or `else` portion of the statement.
+     */
     vector<bool> vfExec;
     vector<valtype> stack;
     vector<valtype> altstack;
@@ -149,6 +160,8 @@ bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nI
             {
                 if (vfExec.empty())
                     return false;
+                // `If` statement has ended so we can get rid of our
+                // ongoing tracking of its state via `vfExec`
                 vfExec.pop_back();
             }
             break;

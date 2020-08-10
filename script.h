@@ -544,7 +544,10 @@ public:
         {
             if (pc + 1 > end())
                 return false;
+            // eg. 1100 => 1100 0000 0000
             opcode <<= 8;
+            // Example (opcode === `1100 0000 0000`, pc = `1111`)
+            // 1100 0000 0000 => 1100 0000 1111
             opcode |= *pc++;
         }
 
