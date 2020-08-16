@@ -188,6 +188,10 @@ public:
             // position, so that it's ready for extraction via
             // the line above
             n <<= 8;
+            /**
+             * Prevent leading zeroes from being stored if there
+             * are any in the number.
+             */
             if (fLeadingZeroes)
             {
                 if (c == 0)
@@ -198,7 +202,9 @@ public:
             }
             *p++ = c;
         }
+        // Get byte size
         unsigned int nSize = p - (pch + 4);
+        // Convert byte size to big endian
         pch[0] = (nSize >> 24) & 0xff;
         pch[1] = (nSize >> 16) & 0xff;
         pch[2] = (nSize >> 8) & 0xff;

@@ -14,6 +14,7 @@
 //
 
 static CCriticalSection cs_db;
+// Indicates whether a DB connection is open:
 static bool fDbEnvInit = false;
 DbEnv dbenv(0);
 static map<string, int> mapFileUseCount;
@@ -35,23 +36,37 @@ public:
 }
 instance_of_cdbinit;
 
-
+/**
+ * Constructor that creates a new instance of CDB.
+ */
 CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
 {
+    // This value will be used to indicate the success (0) or failure (>0)
+    // of our attempt to open the DB connection below.
     int ret;
+    // If no file given to read to/write from, error:
     if (pszFile == NULL)
         return;
 
+    // Indicates whether this database should be created (if necessary).
+    // If the DB file doesn't exist on disk, this flag must be provided
+    // or else there will be an error.
     bool fCreate = strchr(pszMode, 'c');
+    // Indicates whether this database is being opened in read mode and NOT in write mode:
     bool fReadOnly = (!strchr(pszMode, '+') && !strchr(pszMode, 'w'));
     unsigned int nFlags = DB_THREAD;
     if (fCreate)
         nFlags |= DB_CREATE;
     else if (fReadOnly)
         nFlags |= DB_RDONLY;
+
+    // If specified, wrap operations in a transaction:
     if (!fReadOnly || fTxn)
         nFlags |= DB_AUTO_COMMIT;
 
+    /**
+     * Acquire a lock before proceeding.
+     */
     CRITICAL_BLOCK(cs_db)
     {
         if (!fDbEnvInit)
@@ -95,6 +110,7 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
                     nFlags,    // Flags
                     0);
 
+    // The DB->open() method returns a non-zero error value on failure and 0 on success
     if (ret > 0)
     {
         delete pdb;

@@ -617,11 +617,16 @@ public:
 class CMerkleTx : public CTransaction
 {
 public:
+    // The hash of the blcok this transaction is in:
     uint256 hashBlock;
+    // The branch of a merkle tree that this transaction is in:
     vector<uint256> vMerkleBranch;
+    // This transactions index in the `vtx` vector of transactions in this block:
     int nIndex;
 
-    // memory only
+    // Indicates whether this transaction has been verified to be in the merkle tree.
+    // This is defaulted to false but will be set to true if the tx is verified
+    // to be in the associated block.
     mutable bool fMerkleVerified;
 
 
@@ -826,8 +831,11 @@ class CBlock
 public:
     // header
     int nVersion;
+    // The hash of the previous block:
     uint256 hashPrevBlock;
+    // The 256-bit hash representing all of the transactions in the block:
     uint256 hashMerkleRoot;
+    // The time the block was mined:
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
@@ -884,14 +892,26 @@ public:
     }
 
 
+    /**
+     * Constructs the merkle tree hash from all of the transactions.
+     */
     uint256 BuildMerkleTree() const
     {
         vMerkleTree.clear();
         foreach(const CTransaction& tx, vtx)
             vMerkleTree.push_back(tx.GetHash());
         int j = 0;
+        /**
+         * Construct the tree by going through each level, which is half
+         * the size of the previous level.
+         */
         for (int nSize = vtx.size(); nSize > 1; nSize = (nSize + 1) / 2)
         {
+            /**a
+             * Go through pairs of nodes at each level (think of a
+             * tree with two branches) and push the hash of the pair
+             * into the tree
+             */
             for (int i = 0; i < nSize; i += 2)
             {
                 int i2 = min(i+1, nSize-1);
@@ -919,6 +939,10 @@ public:
         return vMerkleBranch;
     }
 
+    /**
+     * This method can be used to verify that a given transaction is found
+     * in a given merkle tree of transactions.
+     */
     static uint256 CheckMerkleBranch(uint256 hash, const vector<uint256>& vMerkleBranch, int nIndex)
     {
         if (nIndex == -1)

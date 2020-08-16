@@ -23,13 +23,32 @@ extern void DBFlush(bool fShutdown);
 
 
 
+/**
+ * CDB is the base class that is used by the various classes representing data that can be
+ * stored in Berkeley DB on the user's disk.
+ * 
+ * Each child class that is based on CDB will have a specific data structure that it
+ * stores and a specific file on disk that it stores that type of data to.
+ * 
+ * Each instance of CDB represents a handler to the database. As such, copies of instances
+ * of this class cannot be made, and the class cannot be used as the right-value in an
+ * assignment. This class should instead just be instantiated (through a child class)
+ * any time a new connection is needed.
+ * 
+ */
 class CDB
 {
+// This is class is *only* to be used as a base for other classes and
+// is therefore proteced so that it can't be instantiated directly.
+// IE you have to instantiate it via a child.
 protected:
+    // The connection handler:
     Db* pdb;
+    // The file on disk to read from/write to for this instance:
     string strFile;
     vector<DbTxn*> vTxn;
 
+    // The signature of the constructor:
     explicit CDB(const char* pszFile, const char* pszMode="r+", bool fTxn=false);
     ~CDB() { Close(); }
 public:
