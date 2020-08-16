@@ -13,10 +13,14 @@
 // CDB
 //
 
+// A lock on cs_db is needed to make changes to the variables directly
+// below (fDbEnvInit, dbenv, and mapFileUseCount)
 static CCriticalSection cs_db;
-// Indicates whether a DB connection is open:
+// Indicates whether the DB environment has been initiated:
 static bool fDbEnvInit = false;
 DbEnv dbenv(0);
+// A key-value mapping indicating how many times a file is
+// used when opening a DB connection.
 static map<string, int> mapFileUseCount;
 
 class CDBInit
@@ -42,7 +46,7 @@ instance_of_cdbinit;
 CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
 {
     // This value will be used to indicate the success (0) or failure (>0)
-    // of our attempt to open the DB connection below.
+    // of our attempts to open the 1) DB environment, and 2) the DB connection.
     int ret;
     // If no file given to read to/write from, error:
     if (pszFile == NULL)
@@ -71,17 +75,25 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
     {
         if (!fDbEnvInit)
         {
+            // Make the DB folder (if it doesn't exist):
             string strAppDir = GetAppDir();
             string strLogDir = strAppDir + "\\database";
             _mkdir(strLogDir.c_str());
             printf("dbenv.open strAppDir=%s\n", strAppDir.c_str());
 
+            // Set where DB logs should go:
             dbenv.set_lg_dir(strLogDir.c_str());
+            // Set the max log size of a file (in bytes):
             dbenv.set_lg_max(10000000);
+            // Set the max number of locks for the DB to allow:
             dbenv.set_lk_max_locks(10000);
+            // Set the max number of locked objects for the DB to allow:
             dbenv.set_lk_max_objects(10000);
             dbenv.set_errfile(fopen("db.log", "a")); /// debug
             ///dbenv.log_set_config(DB_LOG_AUTO_REMOVE, 1); /// causes corruption
+
+            // Attempt to open the Berkeley DB environment to use and update ret
+            // with the success or failure status of the command.
             ret = dbenv.open(strAppDir.c_str(),
                              DB_CREATE     |
                              DB_INIT_LOCK  |
@@ -92,11 +104,15 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
                              DB_PRIVATE    |
                              DB_RECOVER,
                              0);
+
+            // If an error when opening the DB environment, throw an error:
             if (ret > 0)
                 throw runtime_error(strprintf("CDB() : error %d opening database environment\n", ret));
+            // Otherwise, flip the flag so we don't try to do this logic
+            // again while the environment is open:
             fDbEnvInit = true;
         }
-
+        // Set CDB's property for the filename to store/read data from:
         strFile = pszFile;
         ++mapFileUseCount[strFile];
     }
