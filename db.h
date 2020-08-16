@@ -58,6 +58,8 @@ private:
     void operator=(const CDB&);
 
 protected:
+
+    // Read a value-value pair from the DB
     template<typename K, typename T>
     bool Read(const K& key, T& value)
     {
@@ -75,6 +77,8 @@ protected:
         datValue.set_flags(DB_DBT_MALLOC);
         int ret = pdb->get(GetTxn(), &datKey, &datValue, 0);
         memset(datKey.get_data(), 0, datKey.get_size());
+
+        // If nothing found in the DB for this key, return false
         if (datValue.get_data() == NULL)
             return false;
 
@@ -205,6 +209,8 @@ protected:
         return 0;
     }
 
+    // Transaction handler that is used when reading/writing
+    // so that a query can be added to a transaction.
     DbTxn* GetTxn()
     {
         if (!vTxn.empty())
@@ -216,35 +222,52 @@ protected:
 public:
     bool TxnBegin()
     {
+        // If no connection, return early
         if (!pdb)
             return false;
         DbTxn* ptxn = NULL;
+        // Begin a new transaction at the DB level and assign
+        // it to ptxn.
         int ret = dbenv.txn_begin(GetTxn(), &ptxn, 0);
+        // If it didn't get assigned or returned a failure status, return early:
         if (!ptxn || ret != 0)
             return false;
+        // Place the new transaction in the vector of transactions
+        // so that we can use it later
         vTxn.push_back(ptxn);
         return true;
     }
 
     bool TxnCommit()
     {
+        // If no connection, return early
         if (!pdb)
             return false;
+        // If no transactions to commit, return early
         if (vTxn.empty())
             return false;
+        // Commit the transaction at the DB level
         int ret = vTxn.back()->commit(0);
+        // Remove transaction from the vector of transactions
+        // now that it's either succeeded or failed.
         vTxn.pop_back();
+        // Return whether or not the commitment succeeded:
         return (ret == 0);
     }
 
     bool TxnAbort()
     {
+        // If no connection, return early
         if (!pdb)
             return false;
+        // If no transactions to commit, return early
         if (vTxn.empty())
             return false;
+        // Abort the transaction at the DB level
         int ret = vTxn.back()->abort();
+        // Remove from the vector of ongoing transactions
         vTxn.pop_back();
+        // Return whether or not we were able to abort successfully:
         return (ret == 0);
     }
 

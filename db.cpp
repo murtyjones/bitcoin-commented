@@ -14,7 +14,9 @@
 //
 
 // A lock on cs_db is needed to make changes to the variables directly
-// below (fDbEnvInit, dbenv, and mapFileUseCount)
+// below (fDbEnvInit, dbenv, and mapFileUseCount). Since these variables
+// are only used in this file, they have `static` prepended to indicate
+// that other files shouldn;t be able to access them.
 static CCriticalSection cs_db;
 // Indicates whether the DB environment has been initiated:
 static bool fDbEnvInit = false;
@@ -26,9 +28,11 @@ static map<string, int> mapFileUseCount;
 class CDBInit
 {
 public:
+    // Constructor:
     CDBInit()
     {
     }
+    // Destructor (guaranteed to be called when the object goes out of scope):
     ~CDBInit()
     {
         if (fDbEnvInit)
@@ -38,6 +42,8 @@ public:
         }
     }
 }
+// We place the instance of CDBInit in a global variable so that
+// it will be destructed when it goes out of scope.
 instance_of_cdbinit;
 
 /**
@@ -117,8 +123,10 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
         ++mapFileUseCount[strFile];
     }
 
+    // Make a new instance of the DB
     pdb = new Db(&dbenv, 0);
 
+    // Open the connection and return the success/failure status of the operation:
     ret = pdb->open(NULL,      // Txn pointer
                     pszFile,   // Filename
                     "main",    // Logical db name
