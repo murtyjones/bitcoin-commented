@@ -46,6 +46,11 @@ protected:
     Db* pdb;
     // The file on disk to read from/write to for this instance:
     string strFile;
+    // The vector of ongoing (IE not committed or aborted) transactions.
+    // This will start as empty and can be appended to using TxnBegin or
+    // removed from using `TxnAbort` / `TxnCommit`. When a new transaction
+    // is added, it is a child of the last added transaction in this vector
+    // (if there is one).
     vector<DbTxn*> vTxn;
 
     // The signature of the constructor:
@@ -227,7 +232,10 @@ public:
             return false;
         DbTxn* ptxn = NULL;
         // Begin a new transaction at the DB level and assign
-        // it to ptxn.
+        // it to ptxn. We'll either create a new standalone
+        // transaction (if GetTxn() returns NULL) or a new
+        // 'child' transaction of the transaction returned by
+        // GetTxn() (IE the most recently-made transaction).
         int ret = dbenv.txn_begin(GetTxn(), &ptxn, 0);
         // If it didn't get assigned or returned a failure status, return early:
         if (!ptxn || ret != 0)
@@ -298,16 +306,19 @@ private:
     CTxDB(const CTxDB&);
     void operator=(const CTxDB&);
 public:
+    // Transaction-index related functions:
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
     bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);
     bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos, int nHeight);
     bool EraseTxIndex(const CTransaction& tx);
+    // Transaction related functions:
     bool ContainsTx(uint256 hash);
     bool ReadOwnerTxes(uint160 hash160, int nHeight, vector<CTransaction>& vtx);
     bool ReadDiskTx(uint256 hash, CTransaction& tx, CTxIndex& txindex);
     bool ReadDiskTx(uint256 hash, CTransaction& tx);
     bool ReadDiskTx(COutPoint outpoint, CTransaction& tx, CTxIndex& txindex);
     bool ReadDiskTx(COutPoint outpoint, CTransaction& tx);
+    // Block related functions:
     bool WriteBlockIndex(const CDiskBlockIndex& blockindex);
     bool EraseBlockIndex(uint256 hash);
     bool ReadHashBestChain(uint256& hashBestChain);
@@ -319,6 +330,11 @@ public:
 
 
 
+/**
+ * This was deprecated not long after 0.1.5's release. It had some
+ * role in the "distributed market" included in this release. Not
+ * important or worth reviewing.
+ */
 class CReviewDB : public CDB
 {
 public:
@@ -345,6 +361,11 @@ public:
 
 
 
+/**
+ * This was deprecated not long after 0.1.5's release. It had some
+ * role in the "distributed market" included in this release. Not
+ * important or worth reviewing.
+ */
 class CMarketDB : public CDB
 {
 public:
@@ -358,6 +379,10 @@ private:
 
 
 
+/**
+ * Stores the IPv4 addresses of peer nodes that the application
+ * will connect to on start-up.
+ */
 class CAddrDB : public CDB
 {
 public:

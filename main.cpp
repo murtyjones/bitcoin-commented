@@ -15,9 +15,19 @@
 
 CCriticalSection cs_main;
 
+/**
+ * Holds all valid transactions that haven't been committed to the blockchain
+ * yet. These include transactions I broadcast and transactions that other
+ * bitcoin nodes broadcast.
+ */
 map<uint256, CTransaction> mapTransactions;
 CCriticalSection cs_mapTransactions;
 unsigned int nTransactionsUpdated = 0;
+/**
+ * Maps from an output slot of a transaction to an input slot that spends
+ * that output slot. In other words, this map provides an easy way to see
+ * what transaction spends another one.
+ */
 map<COutPoint, CInPoint> mapNextTx;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
@@ -116,6 +126,11 @@ vector<unsigned char> GenerateNewKey()
 // mapWallet
 //
 
+/**
+ * Adds the transaction to our wallet if it's not already there. If it
+ * is there, checks to see if it needs to be updated based on any updated
+ * properties and performs the update if any.
+ */
 bool AddToWallet(const CWalletTx& wtxIn)
 {
     uint256 hash = wtxIn.GetHash();
@@ -429,24 +444,33 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
 
 
 
-
+/**
+ * Checks all aspects of the transaction and decides whether to accept it or not.
+ */
 bool CTransaction::AcceptTransaction(CTxDB& txdb, bool fCheckInputs, bool* pfMissingInputs)
 {
     if (pfMissingInputs)
         *pfMissingInputs = false;
 
-    // Coinbase is only valid in a block, not as a loose transaction
+    /**
+     * Coinbase is only valid in a block, not as a loose transaction. IE
+     * we can't just send or receive a coinbase tx. Obviously the outputs
+     * can be spent but that's different.
+     */
     if (IsCoinBase())
         return error("AcceptTransaction() : coinbase as individual tx");
 
+    // Ensure that there are outputs and inputs, that the tx value isn't negative, etc.
     if (!CheckTransaction())
         return error("AcceptTransaction() : CheckTransaction failed");
 
-    // Do we already have it?
+    // Do we already have this tx saved? If so don't accept it again.
     uint256 hash = GetHash();
     CRITICAL_BLOCK(cs_mapTransactions)
         if (mapTransactions.count(hash))
             return false;
+    
+    // If this is in the database and we're a validating node, reject it:
     if (fCheckInputs)
         if (txdb.ContainsTx(hash))
             return false;
@@ -458,18 +482,56 @@ bool CTransaction::AcceptTransaction(CTxDB& txdb, bool fCheckInputs, bool* pfMis
         COutPoint outpoint = vin[i].prevout;
         if (mapNextTx.count(outpoint))
         {
-            // Allow replacing with a newer version of the same transaction
+            /**
+             * If the index for the above for-loop is >0, we will not accept this
+             * transaction. The only way this condition will happen is if, on the
+             * first iteration of this for-loop, we find and old transaction, but
+             * we don't find an instance of output => input from `mapNextTx`. If
+             * we don't find that instance, that means that ptxOld and ptxNew
+             * don't spend exactly the same inputs and outputs, so something weird
+             * is going on where there's an old transaction, but the new tx and the
+             * old tx don't spend exactly the same inputs and outputs. The new tx
+             * is trying to spend some outputs from the old tx and also some that
+             * have not been added to the mempool for spending. If we *do* find that
+             * instance, then here inside the first iteration of the for loop, we'll
+             * go through each input of txNew and ensure that txOld also spends it.
+             * By doing so in the first iteraiton of this loop, we'll have enough
+             * info to either consider this transaction a valid replacement or to
+             * reject it.
+             */
             if (i != 0)
                 return false;
             ptxOld = mapNextTx[outpoint].ptx;
+
+            // If this isn't a newer version of the old tx, don't accept it:
             if (!IsNewerThan(*ptxOld))
                 return false;
+
             for (int i = 0; i < vin.size(); i++)
             {
+                /**
+                 * For each output that we are spending, there must be an
+                 * input slot that spends it and that input slot must be
+                 * part of the older version of this transaction.
+                 * 
+                 * Basically what this confirms is that txNew and txOld
+                 * spend the same outputs as each other, regardless of the
+                 * ordering of those outputs in the txNew's vin vs the
+                 * txOld's vin.
+                 */
                 COutPoint outpoint = vin[i].prevout;
                 if (!mapNextTx.count(outpoint) || mapNextTx[outpoint].ptx != ptxOld)
                     return false;
             }
+
+            /**
+             * We found oldTx and we confirmed that every output spent by
+             * oldTx was also spent by newTx, so we can consider the newTx
+             * to be a replacement for the oldTx and break our outer loop
+             * without returning `false`. At this point, the transaction
+             * is accepted and will return `true` unless some unexpected
+             * error occurs.
+             */
             break;
         }
     }
@@ -574,6 +636,13 @@ int CMerkleTx::GetBlocksToMaturity() const
 
 bool CMerkleTx::AcceptTransaction(CTxDB& txdb, bool fCheckInputs)
 {
+    /**
+     * If this is *not* a fully validating node (IE it is a client-only
+     * node), then we'll check to see if the transaction is in the main
+     * chain and ensure that we have enough inputs to make the tx.
+     * 
+     * ^ Not sure if this is correct. Confusing logic in here.
+     */
     if (fClient)
     {
         if (!IsInMainChain() && !ClientConnectInputs())
@@ -2676,7 +2745,11 @@ bool CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, in
     return true;
 }
 
-// Call after CreateTransaction unless you want to abort
+/**
+ * Call after CreateTransaction unless you want to abort.
+ * 
+ * This will mark the coins as spent.
+ */
 bool CommitTransactionSpent(const CWalletTx& wtxNew)
 {
     CRITICAL_BLOCK(cs_main)

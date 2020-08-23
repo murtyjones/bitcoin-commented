@@ -346,6 +346,8 @@ CBlockIndex* InsertBlockIndex(uint256 hash)
 
     // Return existing
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+    // If we find a block index with this hash, it's
+    // already inserted, so return it without inserting:
     if (mi != mapBlockIndex.end())
         return (*mi).second;
 
@@ -383,6 +385,7 @@ bool CTxDB::LoadBlockIndex()
 
         // Unserialize
         string strType;
+        // Since the key is a pair, deserialize just the first part:
         ssKey >> strType;
         if (strType == "blockindex")
         {
@@ -567,19 +570,28 @@ bool CWalletDB::LoadWallet(vector<unsigned char>& vchDefaultKeyRet)
 
             // Unserialize
             // Taking advantage of the fact that pair serialization
-            // is just the two items serialized one after the other
+            // is just the two items serialized one after the other,
+            // so we can deserialize them one at a time
             string strType;
+            // Deserialize the first item in the pair
             ssKey >> strType;
+
+            // IP address:
             if (strType == "name")
             {
                 string strAddress;
+                // Deserialize the second item in the pair
                 ssKey >> strAddress;
+                // Load the address into the global address book
                 ssValue >> mapAddressBook[strAddress];
             }
+            // Money sent to me:
             else if (strType == "tx")
             {
                 uint256 hash;
+                // Deserialize the second item in the pair
                 ssKey >> hash;
+                // Load the coins sent to me into the wallet:
                 CWalletTx& wtx = mapWallet[hash];
                 ssValue >> wtx;
 
@@ -594,24 +606,31 @@ bool CWalletDB::LoadWallet(vector<unsigned char>& vchDefaultKeyRet)
                 //    wtx.hashBlock.ToString().substr(0,14).c_str(),
                 //    wtx.mapValue["message"].c_str());
             }
+            // A bitcoin public/private key pair that I own:
             else if (strType == "key")
             {
                 vector<unsigned char> vchPubKey;
+                // Deserialize the second item in the pair
                 ssKey >> vchPubKey;
                 CPrivKey vchPrivKey;
                 ssValue >> vchPrivKey;
 
+                // Load the keys i own into memory:
                 mapKeys[vchPubKey] = vchPrivKey;
                 mapPubKeys[Hash160(vchPubKey)] = vchPubKey;
             }
+            // The public/private key I'll use to send myself spare change:
             else if (strType == "defaultkey")
             {
                 ssValue >> vchDefaultKeyRet;
             }
+            // Settings
             else if (strType == "setting")  /// or settings or option or options or config?
             {
                 string strKey;
+                // Deserialize the second item in the pair
                 ssKey >> strKey;
+                // Load settings into global state:
                 if (strKey == "fGenerateBitcoins")  ssValue >> fGenerateBitcoins;
                 if (strKey == "nTransactionFee")    ssValue >> nTransactionFee;
                 if (strKey == "addrIncoming")       ssValue >> addrIncoming;

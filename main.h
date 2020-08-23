@@ -413,27 +413,45 @@ public:
         return true;
     }
 
+    // Indictes whether this transaction is a "newer" version of the `old` transaction:
     bool IsNewerThan(const CTransaction& old) const
     {
+        // If they don't have the same number of inputs, these aren't different versions
+        // of the same transaction, so this one isn't a newer version of the old one.
         if (vin.size() != old.vin.size())
             return false;
+        
+        // If they don't use the same previous outputs in the same order, this one
+        // isn't a newer version of the old one.
         for (int i = 0; i < vin.size(); i++)
             if (vin[i].prevout != old.vin[i].prevout)
                 return false;
 
         bool fNewer = false;
+        // The lowest encountered nSequence from both the current and
+        // the old transaction.
         unsigned int nLowest = UINT_MAX;
+
         for (int i = 0; i < vin.size(); i++)
         {
+            // For a given input pair, if the sequences match then there's
+            // newer about the current tx.
             if (vin[i].nSequence != old.vin[i].nSequence)
             {
+                // If the new tx's input slot's sequence is lower than the
+                // currently known lowest sequence, make this the new lowest
                 if (vin[i].nSequence <= nLowest)
                 {
+                    // Reset the fNewer state because we found a new lowest
+                    // sequence in this tx.
                     fNewer = false;
                     nLowest = vin[i].nSequence;
                 }
                 if (old.vin[i].nSequence < nLowest)
                 {
+                    // We'll only ever return true if the lowest encountered
+                    // sequence in the new tx is > the sequence in the old
+                    // tx's corresesponding input slot.
                     fNewer = true;
                     nLowest = old.vin[i].nSequence;
                 }
